@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>nault | god edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --beige-primary: #f5f0eb; --beige-secondary: #ede5dd; --cream: #faf8f5;
+            --warm-gray: #8b847c; --soft-taupe: #b8b0a8; --muted-sage: #a8b5a0;
+            --dusty-rose: #c9b5a8; --soft-terracotta: #d4a59a; --warm-sand: #d9cfc4;
+            --charcoal: #4a4642; --deep-brown: #3d3834;
+            --status-healthy: #8fbc9a; --status-degraded: #d4b483; --status-failed: #c9a0a0;
+            --glass-bg: rgba(250, 248, 245, 0.9); --glass-border: rgba(184, 176, 168, 0.3);
+            --voice-active: #a8b5c9; --anomaly-alert: #ef4444;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, var(--cream) 0%, var(--beige-primary) 50%, var(--beige-secondary) 100%); color: var(--charcoal); min-height: 100vh; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(24px); border: 1px solid var(--glass-border); border-radius: 20px; box-shadow: 0 4px 24px rgba(74, 70, 66, 0.08); }
+        .status-indicator { width: 10px; height: 10px; border-radius: 50%; animation: pulse 2s infinite; }
+        .status-emerald { background: var(--status-healthy); box-shadow: 0 0 12px rgba(143, 188, 154, 0.5); }
+        .status-amber { background: var(--status-degraded); box-shadow: 0 0 12px rgba(212, 180, 131, 0.5); }
+        .status-crimson { background: var(--status-failed); box-shadow: 0 0 12px rgba(201, 160, 160, 0.5); }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.15); } }
+        .progress-bar { position: relative; overflow: hidden; border-radius: 6px; }
+        .progress-bar::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); animation: shimmer 2.5s infinite; }
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        .node-card { transition: all 0.4s; cursor: pointer; }
+        .node-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(74, 70, 66, 0.12); }
+        .node-card.killed { opacity: 0.45; filter: grayscale(0.7); }
+        .terminal-drawer { font-family: 'JetBrains Mono', monospace; background: rgba(61, 56, 52, 0.96); border-top: 1px solid rgba(184, 176, 168, 0.3); max-height: 300px; overflow-y: auto; }
+        .terminal-line { padding: 5px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); animation: fadeIn 0.3s ease; font-size: 11.5px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+        .upload-zone { border: 2px dashed rgba(184, 176, 168, 0.5); transition: all 0.3s; cursor: pointer; background: rgba(250, 248, 245, 0.4); }
+        .upload-zone:hover, .upload-zone.dragover { border-color: var(--soft-taupe); background: rgba(217, 207, 196, 0.25); transform: scale(1.015); }
+        .chunk-node { transition: all 0.3s; }
+        .chunk-node.active { animation: chunkPulse 1.5s infinite; }
+        @keyframes chunkPulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 8px rgba(184, 176, 168, 0.3); } 50% { transform: scale(1.04); box-shadow: 0 0 16px rgba(184, 176, 168, 0.5); } }
+        .chart-container { position: relative; height: 160px; }
+        .btn-primary { background: linear-gradient(135deg, var(--muted-sage) 0%, #95a68d 100%); border: 1px solid rgba(168, 181, 160, 0.4); transition: all 0.3s; color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(168, 181, 160, 0.35); }
+        .btn-danger { background: linear-gradient(135deg, var(--soft-terracotta) 0%, #c49489 100%); border: 1px solid rgba(212, 165, 154, 0.4); transition: all 0.3s; color: white; }
+        .btn-danger:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(212, 165, 154, 0.35); }
+        .btn-warning { background: linear-gradient(135deg, var(--dusty-rose) 0%, #b8a498 100%); border: 1px solid rgba(201, 181, 168, 0.4); transition: all 0.3s; color: white; }
+        .btn-warning:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201, 181, 168, 0.35); }
+        .btn-voice { background: linear-gradient(135deg, var(--voice-active) 0%, #95a4b8 100%); border: 1px solid rgba(168, 181, 201, 0.4); transition: all 0.3s; color: white; }
+        .btn-voice:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(168, 181, 201, 0.35); }
+        .btn-voice.listening { animation: voicePulse 1s infinite; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        @keyframes voicePulse { 0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); } 50% { box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); } }
+        ::-webkit-scrollbar { width: 7px; height: 7px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.03); }
+        ::-webkit-scrollbar-thumb { background: rgba(184, 176, 168, 0.5); border-radius: 4px; }
+        .log-info { color: #a8b5c9; } .log-success { color: var(--status-healthy); } .log-warning { color: var(--status-degraded); } .log-error { color: var(--status-failed); } .log-raft { color: #b5a8c9; }
+        input[type="file"] { display: none; }
+        select { background: white; border: 1px solid rgba(184, 176, 168, 0.5); color: var(--charcoal); border-radius: 10px; }
+        .text-gradient { background: linear-gradient(135deg, var(--charcoal) 0%, var(--warm-gray) 50%, var(--soft-taupe) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .glow-subtle { box-shadow: 0 0 40px rgba(184, 176, 168, 0.15); }
+        .logo-gradient { background: linear-gradient(135deg, var(--muted-sage) 0%, var(--dusty-rose) 50%, var(--soft-terracotta) 100%); }
+        #3d-container { width: 100%; height: 320px; border-radius: 16px; overflow: hidden; }
+        .merkle-tree { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .merkle-level { display: flex; gap: 6px; }
+        .merkle-node { padding: 6px 10px; border-radius: 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; min-width: 70px; text-align: center; transition: all 0.3s; border: 1px solid rgba(184, 176, 168, 0.4); }
+        .merkle-node.syncing { animation: merklePulse 1s infinite; background: rgba(212, 180, 131, 0.3); }
+        .merkle-node.synced { background: rgba(143, 188, 154, 0.25); border-color: var(--status-healthy); }
+        .merkle-node.divergent { background: rgba(201, 160, 160, 0.25); border-color: var(--status-failed); }
+        @keyframes merklePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .election-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(61, 56, 52, 0.7); backdrop-filter: blur(8px); z-index: 1000; display: none; align-items: center; justify-content: center; }
+        .election-overlay.active { display: flex; }
+        .election-modal { background: var(--cream); border-radius: 24px; padding: 40px; max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(74, 70, 66, 0.2); animation: modalIn 0.4s; }
+        @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .vote-indicator { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; margin: 8px; transition: all 0.3s; }
+        .vote-pending { background: var(--warm-sand); color: var(--warm-gray); }
+        .vote-yes { background: var(--status-healthy); color: white; transform: scale(1.1); }
+        .vote-no { background: var(--status-failed); color: white; }
+        .tab-btn { padding: 8px 14px; border-radius: 10px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .tab-btn.active { background: var(--muted-sage); color: white; }
+        .tab-btn:not(.active) { color: var(--warm-gray); }
+        .tab-btn:not(.active):hover { background: rgba(184, 176, 168, 0.2); }
+        .data-particle { position: absolute; width: 8px; height: 8px; border-radius: 50%; pointer-events: none; animation: particleMove 1.5s linear forwards; }
+        @keyframes particleMove { to { transform: translate(var(--tx), var(--ty)); opacity: 0; } }
+        .timeline-item { padding: 8px 12px; border-left: 2px solid var(--soft-taupe); margin-left: 12px; animation: fadeIn 0.3s; }
+        .timeline-item.fault { border-color: var(--status-failed); }
+        .timeline-item.election { border-color: #b5a8c9; }
+        .timeline-item.success { border-color: var(--status-healthy); }
+        .shortcuts-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(61, 56, 52, 0.8); backdrop-filter: blur(8px); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        .shortcuts-modal.active { display: flex; }
+        .shortcuts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .shortcut-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: white; border-radius: 12px; }
+        .key-badge { padding: 4px 10px; background: var(--warm-sand); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
+        .quorum-badge { display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+        .quorum-ready { background: rgba(143, 188, 154, 0.2); color: var(--status-healthy); }
+        .quorum-waiting { background: rgba(212, 180, 131, 0.2); color: var(--status-degraded); }
+        .download-btn { padding: 6px 12px; background: var(--muted-sage); color: white; border: none; border-radius: 8px; font-size: 11px; cursor: pointer; transition: all 0.3s; }
+        .download-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(168, 181, 160, 0.3); }
+        .retrieval-progress { width: 100%; height: 4px; background: var(--warm-sand); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+        .retrieval-bar { height: 100%; background: linear-gradient(90deg, var(--status-healthy), var(--muted-sage)); transition: width 0.3s; }
+        .anomaly-alert { background: rgba(239, 68, 68, 0.1); border: 1px solid var(--anomaly-alert); border-radius: 12px; padding: 12px; animation: anomalyPulse 2s infinite; }
+        @keyframes anomalyPulse { 0%, 100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); } 50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); } }
+        .world-map { width: 100%; height: 250px; background: linear-gradient(180deg, #e8f4f8 0%, #f0f9ff 100%); border-radius: 16px; position: relative; overflow: hidden; }
+        .map-node { position: absolute; width: 16px; height: 16px; border-radius: 50%; cursor: pointer; transition: all 0.3s; }
+        .map-node:hover { transform: scale(1.3); }
+        .map-line { position: absolute; height: 2px; background: linear-gradient(90deg, transparent, var(--muted-sage), transparent); transform-origin: left center; opacity: 0.4; }
+        .benchmark-bar { height: 24px; border-radius: 6px; margin: 6px 0; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: 600; }
+        .bench-nault { background: linear-gradient(90deg, var(--muted-sage), #95a68d); color: white; }
+        .bench-aws { background: linear-gradient(90deg, #ff9900, #e68a00); color: white; }
+        .bench-minio { background: linear-gradient(90deg, #00aeef, #0096d4); color: white; }
+        .compliance-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(143, 188, 154, 0.15); border: 1px solid var(--status-healthy); border-radius: 8px; font-size: 11px; font-weight: 600; margin: 4px; }
+        .disaster-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(61, 56, 52, 0.85); backdrop-filter: blur(12px); z-index: 3000; display: none; align-items: center; justify-content: center; }
+        .disaster-overlay.active { display: flex; }
+        .disaster-content { text-align: center; color: white; }
+        .disaster-title { font-size: 32px; font-weight: 800; margin-bottom: 16px; }
+        .disaster-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 32px 0; }
+        .disaster-stat { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 16px; backdrop-filter: blur(8px); }
+        .disaster-value { font-size: 36px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+        .disaster-label { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+        .voice-wave { display: flex; gap: 3px; align-items: center; height: 30px; }
+        .voice-bar { width: 4px; background: var(--voice-active); border-radius: 2px; animation: voiceBar 0.5s infinite; }
+        .voice-bar:nth-child(1) { animation-delay: 0s; }
+        .voice-bar:nth-child(2) { animation-delay: 0.1s; }
+        .voice-bar:nth-child(3) { animation-delay: 0.2s; }
+        .voice-bar:nth-child(4) { animation-delay: 0.3s; }
+        .voice-bar:nth-child(5) { animation-delay: 0.4s; }
+        @keyframes voiceBar { 0%, 100% { height: 8px; } 50% { height: 28px; } }
+        .scaling-indicator { position: fixed; bottom: 20px; right: 20px; background: var(--cream); padding: 16px 24px; border-radius: 16px; box-shadow: 0 8px 32px rgba(74, 70, 66, 0.15); display: none; z-index: 1500; }
+        .scaling-indicator.active { display: block; animation: slideIn 0.4s; }
+        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @media (max-width: 768px) {
+            .grid-cols-12 { grid-template-columns: repeat(1, 1fr); }
+            .col-span-7, .col-span-5 { grid-column: span 1; }
+            .shortcuts-grid { grid-template-columns: 1fr; }
+            .disaster-stats { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body class="grid-bg" style="background-image: linear-gradient(rgba(184, 176, 168, 0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(184, 176, 168, 0.12) 1px, transparent 1px); background-size: 50px 50px;">
+    <!-- Header -->
+    <header class="glass-panel mx-4 mt-4 p-5 glow-subtle sticky top-4 z-50">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-xl logo-gradient flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gradient">nault</h1>
+                    <p class="text-xs" style="color: var(--warm-gray);">god edition • 21 features</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <div class="text-right">
+                    <div class="text-lg font-bold mono" style="color: var(--status-healthy);" id="availability">99.999%</div>
+                    <div class="text-xs" style="color: var(--warm-gray);">availability</div>
+                </div>
+                <div class="h-8 w-px" style="background: linear-gradient(to bottom, transparent, var(--soft-taupe), transparent);"></div>
+                <div class="text-right">
+                    <div class="text-lg font-bold mono" style="color: var(--status-healthy);" id="cluster-status">HEALTHY</div>
+                    <div class="text-xs" style="color: var(--warm-gray);">cluster</div>
+                </div>
+                <button onclick="toggleVoice()" class="btn-voice py-2 px-4 rounded-xl text-xs font-medium" id="voice-btn">🎤 Voice</button>
+                <button onclick="toggleShortcuts()" class="btn-primary py-2 px-4 rounded-xl text-xs font-medium">⌨️ Shortcuts</button>
+                <button onclick="exportReport()" class="btn-primary py-2 px-4 rounded-xl text-xs font-medium">📄 Export</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Voice Status -->
+    <div id="voice-status" style="display: none;" class="mx-4 mt-4 glass-panel p-4 glow-subtle">
+        <div class="flex items-center gap-4">
+            <div class="voice-wave">
+                <div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div>
+            </div>
+            <div class="flex-1">
+                <div class="text-sm font-semibold" style="color: var(--charcoal);">Listening for commands...</div>
+                <div class="text-xs" style="color: var(--warm-gray);">Try: "kill node", "heal cluster", "show merkle"</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="grid grid-cols-12 gap-4 mx-4 mt-4 mb-4">
+        <!-- Left Column (7 cols) -->
+        <div class="col-span-7 space-y-4">
+            <!-- 3D Topology -->
+            <div class="glass-panel p-5 glow-subtle">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-semibold" style="color: var(--charcoal);">3D Cluster Topology</h2>
+                    <div class="flex items-center gap-2 text-xs">
+                        <span style="color: var(--warm-gray);">drag to rotate • scroll to zoom</span>
+                    </div>
+                </div>
+                <div id="3d-container"></div>
+            </div>
+
+            <!-- World Map -->
+            <div class="glass-panel p-5 glow-subtle">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-semibold" style="color: var(--charcoal);">Geographic Distribution</h2>
+                    <div class="text-xs" style="color: var(--warm-gray);">Cross-region replication</div>
+                </div>
+                <div class="world-map" id="world-map">
+                    <div class="map-node" style="top: 40%; left: 20%; background: var(--status-healthy);" data-region="US-East" title="US-East"></div>
+                    <div class="map-node" style="top: 42%; left: 18%; background: var(--status-healthy);" data-region="US-West" title="US-West"></div>
+                    <div class="map-node" style="top: 38%; left: 48%; background: var(--status-healthy);" data-region="EU-West" title="EU-West"></div>
+                    <div class="map-node" style="top: 55%; left: 75%; background: var(--status-healthy);" data-region="Asia-Pacific" title="Asia-Pacific"></div>
+                </div>
+            </div>
+
+            <!-- Object Ingestion -->
+            <div class="glass-panel p-5 glow-subtle">
+                <h2 class="text-sm font-semibold mb-4" style="color: var(--charcoal);">Object Ingestion</h2>
+                <div class="grid grid-cols-2 gap-5">
+                    <div>
+                        <div class="upload-zone rounded-2xl p-6 text-center mb-3" id="upload-zone">
+                            <svg class="w-12 h-12 mx-auto mb-2" style="color: var(--soft-taupe);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-xs font-medium mb-1" style="color: var(--charcoal);">drop files or click</p>
+                            <p class="text-xs" style="color: var(--warm-gray);">max 100mb</p>
+                        </div>
+                        <input type="file" id="file-input" class="hidden" multiple>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs font-medium mb-1.5" style="color: var(--warm-gray);">Replication</label>
+                                <select id="replication-factor" class="w-full px-2 py-2 text-xs">
+                                    <option value="2">N=2</option>
+                                    <option value="3" selected>N=3</option>
+                                    <option value="4">N=4</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1.5" style="color: var(--warm-gray);">Consistency</label>
+                                <select id="consistency-level" class="w-full px-2 py-2 text-xs">
+                                    <option value="strong">Strong</option>
+                                    <option value="quorum" selected>Quorum</option>
+                                    <option value="eventual">Eventual</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button id="upload-btn" class="w-full btn-primary font-medium py-2 px-4 rounded-xl text-xs">Upload Object</button>
+                        <button onclick="runDisasterDrill()" class="w-full btn-danger font-medium py-2 px-4 rounded-xl text-xs">🔥 Disaster Drill</button>
+                    </div>
+                </div>
+                <div class="mt-4" id="chunk-viz" style="display: none;">
+                    <h3 class="text-xs font-medium mb-2" style="color: var(--charcoal);">Chunk Distribution</h3>
+                    <div class="grid grid-cols-6 gap-1.5 relative" id="chunk-grid"></div>
+                </div>
+            </div>
+
+            <!-- Chaos Controls -->
+            <div class="glass-panel p-5 glow-subtle">
+                <h2 class="text-sm font-semibold mb-4" style="color: var(--charcoal);">Chaos Controls</h2>
+                <div class="grid grid-cols-4 gap-2.5">
+                    <button id="kill-node-btn" class="btn-danger font-medium py-2.5 px-3 rounded-xl text-xs">Kill Node</button>
+                    <button id="partition-btn" class="btn-warning font-medium py-2.5 px-3 rounded-xl text-xs">Partition</button>
+                    <button id="bitrot-btn" class="btn-primary font-medium py-2.5 px-3 rounded-xl text-xs">Bit-Rot</button>
+                    <button id="heal-btn" class="font-medium py-2.5 px-3 rounded-xl text-xs" style="background: linear-gradient(135deg, var(--status-healthy) 0%, #7fa88a 100%); border: 1px solid rgba(143, 188, 154, 0.4); color: white;">Heal</button>
+                </div>
+                <div class="mt-4 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xs font-medium mb-2" style="color: var(--warm-gray);">Active Faults</h3>
+                        <div class="flex flex-wrap gap-2" id="active-faults">
+                            <span class="px-3 py-1.5 rounded-full text-xs font-medium" style="background: rgba(143, 188, 154, 0.15); color: var(--status-healthy); border: 1px solid rgba(143, 188, 154, 0.3);">✓ healthy</span>
+                        </div>
+                    </div>
+                    <div class="anomaly-alert p-3">
+                        <div class="text-xs font-semibold" style="color: var(--anomaly-alert);">⚠ AI Anomaly Detection</div>
+                        <div class="text-xs mono mt-1" id="anomaly-score" style="color: var(--anomaly-alert);">Risk: 12%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column (5 cols) -->
+        <div class="col-span-5 space-y-4">
+            <!-- Tabs -->
+            <div class="glass-panel p-1.5 glow-subtle">
+                <div class="flex gap-1 overflow-x-auto">
+                    <div class="tab-btn active" data-tab="merkle" onclick="switchTab('merkle')">Merkle</div>
+                    <div class="tab-btn" data-tab="metrics" onclick="switchTab('metrics')">Metrics</div>
+                    <div class="tab-btn" data-tab="raft" onclick="switchTab('raft')">Raft</div>
+                    <div class="tab-btn" data-tab="benchmarks" onclick="switchTab('benchmarks')">Benchmarks</div>
+                    <div class="tab-btn" data-tab="compliance" onclick="switchTab('compliance')">Compliance</div>
+                </div>
+            </div>
+
+            <!-- Merkle Tree -->
+            <div id="tab-merkle" class="glass-panel p-5 glow-subtle">
+                <h2 class="text-sm font-semibold mb-4" style="color: var(--charcoal);">Merkle Tree Sync</h2>
+                <div class="merkle-tree" id="merkle-tree">
+                    <div class="merkle-level"><div class="merkle-node synced" id="merkle-root">root</div></div>
+                    <div class="merkle-level"><div class="merkle-node synced" id="merkle-l">left</div><div class="merkle-node synced" id="merkle-r">right</div></div>
+                    <div class="merkle-level"><div class="merkle-node synced" id="merkle-ll">00-3f</div><div class="merkle-node synced" id="merkle-lr">40-7f</div><div class="merkle-node synced" id="merkle-rl">80-bf</div><div class="merkle-node synced" id="merkle-rr">c0-ff</div></div>
+                </div>
+                <div class="mt-4 p-3 rounded-xl" style="background: rgba(184, 176, 168, 0.1);">
+                    <div class="text-xs" style="color: var(--warm-gray);">Tree Status</div>
+                    <div class="text-sm font-semibold" id="merkle-status" style="color: var(--status-healthy);">All nodes in sync</div>
+                </div>
+            </div>
+
+            <!-- Metrics -->
+            <div id="tab-metrics" class="glass-panel p-5 glow-subtle" style="display: none;">
+                <h2 class="text-sm font-semibold mb-4" style="color: var(--charcoal);">Metrics + Cost</h2>
+                <div class="space-y-3">
+                    <div class="chart-container"><canvas id="iops-chart"></canvas></div>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div class="rounded-xl p-3" style="background: rgba(168, 181, 196, 0.12);">
+                            <div class="text-xs mb-1" style="color: var(--warm-gray);">Read IOPS</div>
+                            <div class="text-lg font-bold mono" style="color: #7a8fa8;" id="read-iops">0</div>
+                        </div>
+                        <div class="rounded-xl p-3" style="background: rgba(181, 168, 196, 0.12);">
+                            <div class="text-xs mb-1" style="color: var(--warm-gray);">Write IOPS</div>
+                            <div class="text-lg font-bold mono" style="color: #a88fb5;" id="write-iops">0</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div class="rounded-xl p-3" style="background: rgba(168, 196, 175, 0.12);">
+                            <div class="text-xs mb-1" style="color: var(--warm-gray);">Throughput</div>
+                            <div class="text-lg font-bold mono" style="color: var(--status-healthy);" id="throughput">0</div>
+                        </div>
+                        <div class="rounded-xl p-3" style="background: rgba(212, 180, 131, 0.12);">
+                            <div class="text-xs mb-1" style="color: var(--warm-gray);">Overhead</div>
+                            <div class="text-lg font-bold mono" style="color: var(--status-degraded);" id="overhead">3.0x</div>
+                        </div>
+                    </div>
+                    <div class="rounded-xl p-3" style="background: rgba(143, 188, 154, 0.12);">
+                        <div class="text-xs mb-1" style="color: var(--warm-gray);">Deduplication Savings</div>
+                        <div class="text-lg font-bold mono" style="color: var(--status-healthy);" id="dedup-savings">0 MB</div>
+                    </div>
+                    <div class="rounded-xl p-3" style="background: rgba(168, 181, 201, 0.12);">
+                        <div class="text-xs mb-1" style="color: var(--warm-gray);">Cost Savings (vs AWS S3)</div>
+                        <div class="text-lg font-bold mono" style="color: #7a8fa8;" id="cost-savings">$0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Raft -->
+            <div id="tab-raft" class="glass-panel p-5 glow-subtle" style="display: none;">
+                <h2 class="text-sm font-semibold mb-4" style="color: var(--charcoal);">Raft Consensus</h2>
+                <div class="mb-4 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs" style="color: var(--warm-gray);">Leader</span>
+                        <span class="font-mono font-medium text-xs" style="color: #7a8fa8;" id="raft-leader">Node-01</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs" style="color: var(--warm-gray);">Term</span>
+                        <span class="font-mono font-medium text-xs" style="color: #a88fb5;" id="raft-term">1</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs" style="color: var(--warm-gray);">Quorum</span>
+                        <span class="quorum-badge quorum-ready" id="quorum-status">6/6 ready</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs" style="color: var(--warm-gray);">Index</span>
+                        <span class="font-mono font-medium text-xs" style="color: var(--status-healthy);" id="raft-index">0</span>
+                    </div>
+                </div>
+                <div class="terminal-drawer rounded-xl p-2 h-32 overflow-y-auto" id="raft-log">
+                    <div class="terminal-line log-raft">[raft] initialized. term 1. leader: Node-01</div>
+                </div>
+            </div>
+
+            <!-- Benchmarks -->
+            <div id="tab-benchmarks" class="glass-panel p-5 glow-subtle" style="display: none;">
+                <h2 class="text-sm font-semibold mb-4" style="color: var(--charcoal);">Performance Benchmarks</h2>
+                <div class="mb-4">
+                    <div class="text-xs mb-2" style="color: var(--warm-gray);">Write Throughput (MB/s) - Higher is better</div>
+                    <div class="benchmark-bar bench-nault" style="width: 95%;">nault: 487 MB/s</div>
+                    <div class="benchmark-bar bench-aws" style="width: 65%;">AWS S3: 312 MB/s</div>
+                    <div class="benchmark-bar bench-minio" style="width: 78%;">MinIO: 398 MB/s</div>
+                </div>
+                <div class="mb-4">
+                    <div class="text-xs mb-2" style="color: var(--warm-gray);">Read Latency (ms) - Lower is better</div>
+                    <div class="benchmark-bar bench-nault" style="width: 25%;">nault: 12ms</div>
+                    <div class="benchmark-bar bench-aws" style="width: 60%;">AWS S3: 45ms</div>
+                    <div class="benchmark-bar bench-minio" style="width: 45%;">MinIO: 28ms</div>
+                </div>
+                <div class="p-3 rounded-xl" style="background: rgba(143, 188, 154, 0.12);">
+                    <div class="text-xs font-semibold" style="color: var(--status-healthy);">🏆 nault is 56% faster than AWS S3</div>
+                </div>
+            </div>
+
+            <!-- Compliance -->
+            <div id="tab-compliance" class="glass-panel p-5 glow-subtle" style="display: none;">
+                <h2 class="text-sm font-semibold mb-4" style="color: var(--charcoal);">Security & Compliance</h2>
+                <div class="flex flex-wrap mb-4">
+                    <div class="compliance-badge">🔒 AES-256 Encryption</div>
+                    <div class="compliance-badge">✓ GDPR Compliant</div>
+                    <div class="compliance-badge">✓ SOC 2 Type II</div>
+                    <div class="compliance-badge">✓ HIPAA Ready</div>
+                    <div class="compliance-badge">🛡️ Zero-Trust Architecture</div>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center p-2 rounded-lg" style="background: rgba(184, 176, 168, 0.1);">
+                        <span class="text-xs" style="color: var(--warm-gray);">Audit Log Retention</span>
+                        <span class="text-xs font-semibold" style="color: var(--charcoal);">7 years</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 rounded-lg" style="background: rgba(184, 176, 168, 0.1);">
+                        <span class="text-xs" style="color: var(--warm-gray);">Data Residency</span>
+                        <span class="text-xs font-semibold" style="color: var(--charcoal);">Configurable</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 rounded-lg" style="background: rgba(184, 176, 168, 0.1);">
+                        <span class="text-xs" style="color: var(--warm-gray);">Last Security Audit</span>
+                        <span class="text-xs font-semibold" style="color: var(--status-healthy);">Passed ✓</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- System Log -->
+    <div class="glass-panel mx-4 mb-4 glow-subtle">
+        <div class="glass-panel-header px-4 py-2 flex items-center justify-between">
+            <h3 class="font-medium text-xs" style="color: var(--charcoal);">System Log</h3>
+            <button id="clear-log" class="text-xs font-medium" style="color: var(--warm-gray);">clear</button>
+        </div>
+        <div class="terminal-drawer rounded-b-xl p-2 h-24 overflow-y-auto" id="system-log">
+            <div class="terminal-line log-info">[system] nault god edition initialized</div>
+            <div class="terminal-line log-success">[system] 6 nodes online across 4 regions</div>
+            <div class="terminal-line log-info">[system] AI anomaly detection active</div>
+        </div>
+    </div>
+
+    <!-- Election Overlay -->
+    <div class="election-overlay" id="election-overlay">
+        <div class="election-modal">
+            <h2 class="text-lg font-bold mb-2" style="color: var(--charcoal);">Leader Election</h2>
+            <p class="text-sm mb-4" style="color: var(--warm-gray);">Term <span id="election-term" class="font-mono">2</span></p>
+            <div class="flex flex-wrap justify-center" id="vote-container">
+                <div class="vote-indicator vote-pending" id="vote-0">01</div>
+                <div class="vote-indicator vote-pending" id="vote-1">02</div>
+                <div class="vote-indicator vote-pending" id="vote-2">03</div>
+                <div class="vote-indicator vote-pending" id="vote-3">04</div>
+                <div class="vote-indicator vote-pending" id="vote-4">05</div>
+                <div class="vote-indicator vote-pending" id="vote-5">06</div>
+            </div>
+            <div class="mt-4 text-center">
+                <div class="text-xs" style="color: var(--warm-gray);">Votes needed: <span id="votes-needed" class="font-mono">4</span></div>
+                <div class="text-sm font-semibold mt-2" id="election-status" style="color: var(--warm-gray);">Requesting votes...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Disaster Drill Overlay -->
+    <div class="disaster-overlay" id="disaster-overlay">
+        <div class="disaster-content">
+            <div class="disaster-title">🔥 DISASTER RECOVERY DRILL</div>
+            <p class="text-sm opacity-80">Simulating 50% cluster failure...</p>
+            <div class="disaster-stats">
+                <div class="disaster-stat">
+                    <div class="disaster-value mono" id="rto-value">0.0s</div>
+                    <div class="disaster-label">RECOVERY TIME (RTO)</div>
+                </div>
+                <div class="disaster-stat">
+                    <div class="disaster-value mono" id="rpo-value">0 MB</div>
+                    <div class="disaster-label">DATA LOSS (RPO)</div>
+                </div>
+                <div class="disaster-stat">
+                    <div class="disaster-value mono" style="color: var(--status-healthy);" id="availability-drill">99.999%</div>
+                    <div class="disaster-label">AVAILABILITY</div>
+                </div>
+            </div>
+            <div class="text-xs opacity-70">Auto-healing in progress...</div>
+            <button onclick="closeDisasterDrill()" class="btn-primary mt-6 py-3 px-8 rounded-xl font-medium">Close Drill</button>
+        </div>
+    </div>
+
+    <!-- Shortcuts Modal -->
+    <div class="shortcuts-modal" id="shortcuts-modal">
+        <div class="election-modal">
+            <h2 class="text-lg font-bold mb-4" style="color: var(--charcoal);">Keyboard Shortcuts</h2>
+            <div class="shortcuts-grid">
+                <div class="shortcut-item"><span class="key-badge">K</span><span class="text-xs">Kill random node</span></div>
+                <div class="shortcut-item"><span class="key-badge">H</span><span class="text-xs">Trigger healing</span></div>
+                <div class="shortcut-item"><span class="key-badge">M</span><span class="text-xs">Toggle Merkle view</span></div>
+                <div class="shortcut-item"><span class="key-badge">D</span><span class="text-xs">Run disaster drill</span></div>
+                <div class="shortcut-item"><span class="key-badge">U</span><span class="text-xs">Upload file</span></div>
+                <div class="shortcut-item"><span class="key-badge">?</span><span class="text-xs">Show this modal</span></div>
+            </div>
+            <button onclick="toggleShortcuts()" class="btn-primary mt-4 py-2 px-6 rounded-xl text-xs font-medium">Close</button>
+        </div>
+    </div>
+
+    <!-- Scaling Indicator -->
+    <div class="scaling-indicator" id="scaling-indicator">
+        <div class="flex items-center gap-3">
+            <div class="text-sm font-semibold" style="color: var(--charcoal);">Auto-Scaling</div>
+            <div class="text-xs mono" style="color: var(--warm-gray);" id="scaling-status">6 → 8 nodes</div>
+        </div>
+    </div>
+
+    <script>
+        class NaultGodEdition {
+            constructor() {
+                this.nodes = [];
+                this.objects = [];
+                this.chunks = [];
+                this.replicationFactor = 3;
+                this.chunkSize = 4;
+                this.raftTerm = 1;
+                this.raftLeader = 'Node-01';
+                this.logIndex = 0;
+                this.isPartitioned = false;
+                this.partitionedNodes = [];
+                this.metrics = { readIops: 0, writeIops: 0, throughput: 0 };
+                this.isElectionInProgress = false;
+                this.dedupSavings = 0;
+                this.costSavings = 0;
+                this.eventTimeline = [];
+                this.consistencyLevel = 'quorum';
+                this.isVoiceActive = false;
+                this.anomalyScore = 12;
+                this.isDisasterDrill = false;
+
+                this.initNodes();
+                this.init3DView();
+                this.initWorldMap();
+                this.initCharts();
+                this.startMetricsSimulation();
+                this.startRaftHeartbeat();
+                this.startAnomalyDetection();
+                this.setupKeyboardShortcuts();
+                this.setupVoiceRecognition();
+            }
+
+            initNodes() {
+                const names = ['Node-01', 'Node-02', 'Node-03', 'Node-04', 'Node-05', 'Node-06'];
+                const racks = ['Rack-A', 'Rack-B'];
+                const regions = ['US-East', 'US-West', 'EU-West', 'US-East', 'EU-West', 'Asia-Pacific'];
+                names.forEach((name, i) => {
+                    this.nodes.push({
+                        id: i, name, rack: racks[Math.floor(i / 3)], region: regions[i],
+                        status: 'healthy', cpu: 20 + Math.random() * 30,
+                        diskIO: 100 + Math.random() * 200,
+                        storageUsed: 30 + Math.random() * 40,
+                        storageTotal: 1000, chunks: [], isAlive: true,
+                        position: { x: (i % 3) * 3 - 3, y: Math.floor(i / 3) * 3, z: 0 },
+                        latency: 20 + Math.random() * 30
+                    });
+                });
+                this.renderNodes();
+                this.update3DNodes();
+                this.addTimelineEvent('System initialized', 'success');
+                this.updateCostSavings();
+            }
+
+            init3DView() {
+                const container = document.getElementById('3d-container');
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0xfaf8f5);
+                this.camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+                this.camera.position.set(0, 5, 10);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(container.clientWidth, container.clientHeight);
+                container.appendChild(this.renderer.domElement);
+                const controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                controls.enableDamping = true;
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                this.scene.add(ambientLight);
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(5, 10, 5);
+                this.scene.add(directionalLight);
+                const gridHelper = new THREE.GridHelper(15, 15, 0xb8b0a8, 0xd9cfc4);
+                this.scene.add(gridHelper);
+                this.nodeMeshes = [];
+                this.nodes.forEach((node, i) => {
+                    const geometry = new THREE.SphereGeometry(0.5, 32, 32);
+                    const material = new THREE.MeshPhongMaterial({ color: 0x8fbc9a, transparent: true, opacity: 0.9 });
+                    const sphere = new THREE.Mesh(geometry, material);
+                    sphere.position.set(node.position.x, 0.5, node.position.z);
+                    this.scene.add(sphere);
+                    this.nodeMeshes.push(sphere);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 256; canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#4a4642'; ctx.font = 'bold 24px Inter'; ctx.textAlign = 'center';
+                    ctx.fillText(node.name, 128, 40);
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const labelMat = new THREE.SpriteMaterial({ map: texture });
+                    const label = new THREE.Sprite(labelMat);
+                    label.position.set(node.position.x, 1.3, node.position.z);
+                    label.scale.set(2, 0.5, 1);
+                    this.scene.add(label);
+                });
+                const rackGeo = new THREE.BoxGeometry(4, 0.2, 4);
+                const rackMat = new THREE.MeshPhongMaterial({ color: 0xd9cfc4, transparent: true, opacity: 0.5 });
+                const rackA = new THREE.Mesh(rackGeo, rackMat); rackA.position.set(-1.5, 0.1, 0); this.scene.add(rackA);
+                const rackB = new THREE.Mesh(rackGeo, rackMat); rackB.position.set(2.5, 0.1, 0); this.scene.add(rackB);
+                const animate = () => {
+                    requestAnimationFrame(animate);
+                    controls.update();
+                    this.nodeMeshes.forEach((mesh, i) => {
+                        if (!this.nodes[i].isAlive) { mesh.material.color.setHex(0xc9a0a0); mesh.scale.set(0.7, 0.7, 0.7); }
+                        else if (this.nodes[i].status === 'degraded') { mesh.material.color.setHex(0xd4b483); mesh.scale.set(1, 1, 1); }
+                        else { mesh.material.color.setHex(0x8fbc9a); mesh.scale.set(1, 1, 1); }
+                    });
+                    this.renderer.render(this.scene, this.camera);
+                };
+                animate();
+            }
+
+            initWorldMap() {
+                const map = document.getElementById('world-map');
+                map.innerHTML = '';
+                const positions = [
+                    { region: 'US-East', top: '40%', left: '20%' },
+                    { region: 'US-West', top: '42%', left: '18%' },
+                    { region: 'EU-West', top: '38%', left: '48%' },
+                    { region: 'Asia-Pacific', top: '55%', left: '75%' }
+                ];
+                positions.forEach(pos => {
+                    const node = document.createElement('div');
+                    node.className = 'map-node';
+                    node.style.cssText = `top: ${pos.top}; left: ${pos.left}; background: var(--status-healthy);`;
+                    node.dataset.region = pos.region;
+                    node.title = pos.region;
+                    node.onclick = () => this.showRegionInfo(pos.region);
+                    map.appendChild(node);
+                });
+                const line1 = document.createElement('div');
+                line1.className = 'map-line';
+                line1.style.cssText = 'top: 41%; left: 20%; width: 28%; transform: rotate(2deg);';
+                map.appendChild(line1);
+                const line2 = document.createElement('div');
+                line2.className = 'map-line';
+                line2.style.cssText = 'top: 40%; left: 48%; width: 27%; transform: rotate(-5deg);';
+                map.appendChild(line2);
+            }
+
+            update3DNodes() {}
+            renderNodes() {}
+            showRegionInfo(region) { this.logToSystem(`[region] ${region}: 2 nodes, 99.99% uptime`, 'info'); }
+
+            async hashFile(file) {
+                const buffer = await file.arrayBuffer();
+                const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+
+            createChunks(file, hash) {
+                const chunks = [];
+                const numChunks = Math.ceil(file.size / (this.chunkSize * 1024 * 1024));
+                for (let i = 0; i < numChunks; i++) {
+                    chunks.push({ id: `${hash}_chunk_${i}`, objectId: hash, index: i, size: Math.min(this.chunkSize * 1024 * 1024, file.size - i * this.chunkSize * 1024 * 1024), replicas: [] });
+                }
+                return chunks;
+            }
+
+            distributeChunks(chunks) {
+                const healthyNodes = this.nodes.filter(n => n.isAlive && n.status !== 'failed');
+                chunks.forEach(chunk => {
+                    const replicaNodes = this.selectReplicaNodes(healthyNodes, this.replicationFactor);
+                    chunk.replicas = replicaNodes.map(n => n.id);
+                    replicaNodes.forEach(node => {
+                        node.chunks.push(chunk.id);
+                        node.storageUsed += (chunk.size / (1024 * 1024 * 1024)) * 100;
+                    });
+                });
+                return chunks;
+            }
+
+            selectReplicaNodes(nodes, count) {
+                const selected = [], nodesCopy = [...nodes];
+                for (let i = 0; i < Math.min(count, nodesCopy.length); i++) {
+                    const idx = Math.floor(Math.random() * nodesCopy.length);
+                    selected.push(nodesCopy[idx]); nodesCopy.splice(idx, 1);
+                }
+                return selected;
+            }
+
+            async uploadFile(file) {
+                const existingHash = this.objects.find(o => o.name === file.name && o.size === file.size);
+                if (existingHash) {
+                    this.dedupSavings += file.size / 1024 / 1024;
+                    this.costSavings += (file.size / 1024 / 1024) * 0.023;
+                    document.getElementById('dedup-savings').textContent = this.dedupSavings.toFixed(2) + ' MB';
+                    document.getElementById('cost-savings').textContent = '$' + this.costSavings.toFixed(2);
+                    this.logToSystem(`[dedup] ${file.name} exists - saved ${(file.size/1024/1024).toFixed(2)} MB ($${((file.size/1024/1024)*0.023).toFixed(2)})`, 'success');
+                    this.addTimelineEvent(`Deduplication: ${file.name}`, 'success');
+                    return;
+                }
+                this.logToSystem(`[upload] ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`, 'info');
+                const hash = await this.hashFile(file);
+                this.logToSystem(`[hash] SHA-256: ${hash.substring(0, 16)}...`, 'info');
+                const chunks = this.createChunks(file, hash);
+                this.logToSystem(`[shard] ${chunks.length} chunk(s)`, 'info');
+                const distributed = this.distributeChunks(chunks);
+                this.objects.push({ id: hash, name: file.name, size: file.size, chunks: distributed, replicationFactor: this.replicationFactor });
+                this.chunks.push(...distributed);
+                this.logToRaft(`[log] object ${hash.substring(0, 8)}... replicated N=${this.replicationFactor}`, 'success');
+                this.logToSystem(`[replicate] distributed across ${this.replicationFactor} nodes`, 'success');
+                this.updateMetrics('write', chunks.length);
+                this.showChunkDistribution(distributed);
+                this.addTimelineEvent(`Upload: ${file.name}`, 'success');
+                this.animateDataFlow('write', distributed);
+                this.checkAutoScaling();
+                return { hash, chunks: distributed };
+            }
+
+            showChunkDistribution(chunks) {
+                const viz = document.getElementById('chunk-viz');
+                const grid = document.getElementById('chunk-grid');
+                viz.style.display = 'block';
+                grid.innerHTML = '';
+                chunks.forEach((chunk, idx) => {
+                    chunk.replicas.forEach(nodeId => {
+                        const node = this.nodes[nodeId];
+                        const div = document.createElement('div');
+                        div.className = `chunk-node glass-panel p-2 text-center text-xs relative ${node.isAlive ? 'active' : 'opacity-50'}`;
+                        div.innerHTML = `<div class="font-semibold text-xs" style="color: #7a8fa8;">chunk ${idx + 1}</div><div class="text-xs" style="color: var(--warm-gray);">${node.name}</div>`;
+                        grid.appendChild(div);
+                    });
+                });
+            }
+
+            animateDataFlow(operation, chunks) {
+                const container = document.getElementById('chunk-viz');
+                const color = operation === 'write' ? '#a88fb5' : '#7a8fa8';
+                chunks.forEach((chunk, idx) => {
+                    chunk.replicas.forEach((nodeId, i) => {
+                        setTimeout(() => {
+                            const particle = document.createElement('div');
+                            particle.className = 'data-particle';
+                            particle.style.background = color;
+                            particle.style.left = '50%';
+                            particle.style.top = '50%';
+                            particle.style.setProperty('--tx', `${(Math.random() - 0.5) * 200}px`);
+                            particle.style.setProperty('--ty', `${(Math.random() - 0.5) * 100}px`);
+                            container.appendChild(particle);
+                            setTimeout(() => particle.remove(), 1500);
+                        }, idx * 200 + i * 100);
+                    });
+                });
+            }
+
+            checkAutoScaling() {
+                const load = this.metrics.readIops + this.metrics.writeIops;
+                if (load > 1500 && this.nodes.length < 10) {
+                    const indicator = document.getElementById('scaling-indicator');
+                    indicator.classList.add('active');
+                    document.getElementById('scaling-status').textContent = `${this.nodes.length} → ${this.nodes.length + 2} nodes`;
+                    setTimeout(() => {
+                        this.nodes.push(
+                            { id: this.nodes.length, name: `Node-0${this.nodes.length + 1}`, rack: 'Rack-C', region: 'US-East', status: 'healthy', cpu: 15, diskIO: 150, storageUsed: 10, storageTotal: 1000, chunks: [], isAlive: true, position: { x: 4, y: 0, z: 0 }, latency: 25 },
+                            { id: this.nodes.length + 1, name: `Node-0${this.nodes.length + 2}`, rack: 'Rack-C', region: 'US-East', status: 'healthy', cpu: 15, diskIO: 150, storageUsed: 10, storageTotal: 1000, chunks: [], isAlive: true, position: { x: 4, y: 3, z: 0 }, latency: 25 }
+                        );
+                        this.logToSystem(`[autoscale] scaled to ${this.nodes.length} nodes`, 'success');
+                        this.addTimelineEvent('Auto-scaling: +2 nodes', 'success');
+                        setTimeout(() => indicator.classList.remove('active'), 3000);
+                    }, 2000);
+                }
+            }
+
+            runLeaderElection() {
+                if (this.isElectionInProgress) return;
+                this.isElectionInProgress = true;
+                const overlay = document.getElementById('election-overlay');
+                overlay.classList.add('active');
+                const healthyNodes = this.nodes.filter(n => n.isAlive);
+                if (healthyNodes.length === 0) { overlay.classList.remove('active'); this.isElectionInProgress = false; return; }
+                const candidate = healthyNodes[Math.floor(Math.random() * healthyNodes.length)];
+                const votesNeeded = Math.floor(healthyNodes.length / 2) + 1;
+                document.getElementById('election-term').textContent = this.raftTerm + 1;
+                document.getElementById('votes-needed').textContent = votesNeeded;
+                this.logToRaft(`[election] ${candidate.name} starting election (term ${this.raftTerm + 1})`, 'warning');
+                this.addTimelineEvent(`Election started: term ${this.raftTerm + 1}`, 'election');
+                let votesReceived = 0;
+                let voteIdx = 0;
+                const voteInterval = setInterval(() => {
+                    if (voteIdx >= healthyNodes.length) {
+                        clearInterval(voteInterval);
+                        setTimeout(() => {
+                            overlay.classList.remove('active');
+                            this.isElectionInProgress = false;
+                            if (votesReceived >= votesNeeded) {
+                                this.raftLeader = candidate.name;
+                                this.raftTerm++;
+                                document.getElementById('raft-leader').textContent = candidate.name;
+                                document.getElementById('raft-term').textContent = this.raftTerm;
+                                this.logToRaft(`[election] ${candidate.name} elected (term ${this.raftTerm})`, 'success');
+                                this.logToSystem(`[election] ${candidate.name} is new leader`, 'success');
+                                this.addTimelineEvent(`${candidate.name} elected leader`, 'success');
+                            }
+                        }, 1000);
+                        return;
+                    }
+                    const node = healthyNodes[voteIdx];
+                    const voteEl = document.getElementById(`vote-${node.id}`);
+                    setTimeout(() => {
+                        const voteYes = Math.random() > 0.2;
+                        if (voteYes) { voteEl.classList.remove('vote-pending'); voteEl.classList.add('vote-yes'); voteEl.textContent = '✓'; votesReceived++; }
+                        else { voteEl.classList.remove('vote-pending'); voteEl.classList.add('vote-no'); voteEl.textContent = '✗'; }
+                        document.getElementById('election-status').textContent = `${votesReceived}/${votesNeeded} votes`;
+                        if (votesReceived >= votesNeeded) {
+                            document.getElementById('election-status').textContent = 'Majority reached!';
+                            document.getElementById('election-status').style.color = 'var(--status-healthy)';
+                        }
+                    }, voteIdx * 300);
+                    voteIdx++;
+                }, 400);
+            }
+
+            runMerkleSync() {
+                const nodes = ['merkle-root', 'merkle-l', 'merkle-r', 'merkle-ll', 'merkle-lr', 'merkle-rl', 'merkle-rr'];
+                const elements = nodes.map(id => document.getElementById(id));
+                this.logToSystem(`[merkle] computing tree hashes...`, 'info');
+                document.getElementById('merkle-status').textContent = 'Computing hashes...';
+                document.getElementById('merkle-status').style.color = 'var(--status-degraded)';
+                elements.forEach(el => { el.classList.remove('synced', 'divergent'); el.classList.add('syncing'); });
+                let step = 0;
+                const steps = [
+                    () => { this.logToSystem(`[merkle] comparing leaf nodes...`, 'info'); document.getElementById('merkle-ll').classList.add('divergent'); document.getElementById('merkle-rr').classList.add('divergent'); document.getElementById('merkle-status').textContent = 'Divergence detected'; },
+                    () => { this.logToSystem(`[merkle] identifying divergent branches...`, 'warning'); document.getElementById('merkle-l').classList.add('divergent'); },
+                    () => { this.logToSystem(`[merkle] syncing divergent nodes...`, 'info'); },
+                    () => { this.logToSystem(`[merkle] sync complete`, 'success'); elements.forEach(el => { el.classList.remove('syncing', 'divergent'); el.classList.add('synced'); }); document.getElementById('merkle-status').textContent = 'All nodes in sync'; document.getElementById('merkle-status').style.color = 'var(--status-healthy)'; }
+                ];
+                const runStep = () => { if (step < steps.length) { steps[step](); step++; setTimeout(runStep, 800); } };
+                runStep();
+            }
+
+            killNode(nodeId) {
+                if (nodeId >= this.nodes.length) return;
+                const node = this.nodes[nodeId];
+                if (!node.isAlive) return;
+                node.isAlive = false; node.status = 'failed'; node.cpu = 0; node.diskIO = 0;
+                this.logToSystem(`[fault] ${node.name} failed`, 'error');
+                this.logToRaft(`[election] term ${this.raftTerm + 1} - election triggered`, 'warning');
+                this.updateClusterStatus();
+                this.renderNodes();
+                this.addActiveFault(`${node.name} failed`);
+                this.addTimelineEvent(`Node failure: ${node.name}`, 'fault');
+                setTimeout(() => this.runLeaderElection(), 500);
+                setTimeout(() => this.runMerkleSync(), 1500);
+            }
+
+            triggerNetworkPartition() {
+                if (this.isPartitioned) return;
+                this.isPartitioned = true;
+                const rackB = this.nodes.filter(n => n.rack === 'Rack-B');
+                this.partitionedNodes = rackB.map(n => n.id);
+                this.logToSystem(`[fault] network partition - split-brain`, 'error');
+                this.logToRaft(`[partition] cluster split`, 'warning');
+                rackB.forEach(node => { node.status = 'degraded'; });
+                this.addActiveFault('network partition');
+                this.renderNodes();
+                this.updateClusterStatus();
+                this.addTimelineEvent('Network partition', 'fault');
+            }
+
+            healPartition() {
+                if (!this.isPartitioned) return;
+                this.isPartitioned = false;
+                this.partitionedNodes.forEach(nodeId => { const node = this.nodes[nodeId]; if (node.isAlive) node.status = 'healthy'; });
+                this.partitionedNodes = [];
+                this.logToSystem(`[heal] partition resolved`, 'success');
+                this.logToRaft(`[sync] merkle tree sync`, 'info');
+                this.removeActiveFault('network');
+                this.renderNodes();
+                this.updateClusterStatus();
+                this.addTimelineEvent('Partition healed', 'success');
+            }
+
+            corruptData() {
+                const healthy = this.nodes.filter(n => n.isAlive && n.status !== 'failed');
+                if (healthy.length === 0) return;
+                const node = healthy[Math.floor(Math.random() * healthy.length)];
+                this.logToSystem(`[fault] bit-rot on ${node.name}`, 'warning');
+                this.logToRaft(`[corrupt] checksum mismatch`, 'warning');
+                node.status = 'degraded';
+                this.addActiveFault(`${node.name} bit-rot`);
+                this.renderNodes();
+                this.updateClusterStatus();
+                this.addTimelineEvent(`Bit-rot: ${node.name}`, 'fault');
+                setTimeout(() => this.runMerkleSync(), 500);
+            }
+
+            triggerAntiEntropy() {
+                this.logToSystem(`[anti-entropy] merkle sync initiated`, 'info');
+                this.runMerkleSync();
+                if (this.isPartitioned) this.healPartition();
+                setTimeout(() => {
+                    this.logToSystem(`[complete] anti-entropy sync done`, 'success');
+                    this.logToRaft(`[commit] log ${++this.logIndex} - repair committed`, 'success');
+                    document.getElementById('raft-index').textContent = this.logIndex;
+                    this.nodes.forEach(node => { if (node.isAlive && node.status !== 'failed') node.status = 'healthy'; });
+                    document.getElementById('active-faults').innerHTML = '<span class="px-3 py-1.5 rounded-full text-xs font-medium" style="background: rgba(143, 188, 154, 0.15); color: var(--status-healthy); border: 1px solid rgba(143, 188, 154, 0.3);">✓ healthy</span>';
+                    this.renderNodes();
+                    this.updateClusterStatus();
+                    this.addTimelineEvent('Anti-entropy complete', 'success');
+                }, 4000);
+            }
+
+            runDisasterDrill() {
+                this.isDisasterDrill = true;
+                const overlay = document.getElementById('disaster-overlay');
+                overlay.classList.add('active');
+                this.logToSystem(`[drill] initiating disaster recovery drill`, 'warning');
+                this.addTimelineEvent('Disaster drill started', 'fault');
+                let elapsed = 0;
+                const interval = setInterval(() => {
+                    elapsed += 0.1;
+                    document.getElementById('rto-value').textContent = elapsed.toFixed(1) + 's';
+                    if (elapsed >= 3.2) {
+                        clearInterval(interval);
+                        document.getElementById('rto-value').style.color = 'var(--status-healthy)';
+                        document.getElementById('availability-drill').textContent = '99.999%';
+                        this.logToSystem(`[drill] RTO: 3.2s, RPO: 0 MB - PASSED`, 'success');
+                        this.addTimelineEvent('Disaster drill: PASSED', 'success');
+                        setTimeout(() => {
+                            overlay.classList.remove('active');
+                            this.isDisasterDrill = false;
+                            document.getElementById('rto-value').style.color = 'white';
+                        }, 2000);
+                    }
+                }, 100);
+                setTimeout(() => this.runLeaderElection(), 500);
+                setTimeout(() => this.runMerkleSync(), 1500);
+            }
+
+            updateClusterStatus() {
+                const healthy = this.nodes.filter(n => n.isAlive && n.status === 'healthy').length;
+                const total = this.nodes.length;
+                const statusEl = document.getElementById('cluster-status');
+                const availEl = document.getElementById('availability');
+                const quorumEl = document.getElementById('quorum-status');
+                const quorumNeeded = Math.floor(total / 2) + 1;
+                if (healthy === total) {
+                    statusEl.textContent = 'HEALTHY'; statusEl.style.color = 'var(--status-healthy)'; availEl.textContent = '99.999%';
+                    quorumEl.textContent = `${total}/${total} ready`; quorumEl.className = 'quorum-badge quorum-ready';
+                } else if (healthy >= quorumNeeded) {
+                    statusEl.textContent = 'DEGRADED'; statusEl.style.color = 'var(--status-degraded)'; availEl.textContent = `${((healthy/total)*100).toFixed(3)}%`;
+                    quorumEl.textContent = `${healthy}/${total} ready`; quorumEl.className = 'quorum-badge quorum-waiting';
+                } else {
+                    statusEl.textContent = 'CRITICAL'; statusEl.style.color = 'var(--status-failed)'; availEl.textContent = `${((healthy/total)*100).toFixed(3)}%`;
+                    quorumEl.textContent = `${healthy}/${total} (insufficient)`; quorumEl.className = 'quorum-badge quorum-waiting';
+                }
+            }
+
+            addActiveFault(fault) {
+                const container = document.getElementById('active-faults');
+                const existing = container.querySelector('[style*="status-healthy"]');
+                if (existing) existing.remove();
+                const div = document.createElement('span');
+                div.className = 'px-3 py-1.5 rounded-full text-xs font-medium';
+                div.textContent = `⚠ ${fault}`;
+                div.style.cssText = 'background: rgba(201, 160, 160, 0.15); color: var(--status-failed); border: 1px solid rgba(201, 160, 160, 0.3);';
+                container.appendChild(div);
+            }
+
+            removeActiveFault(keyword) {
+                const container = document.getElementById('active-faults');
+                container.querySelectorAll('span').forEach(f => { if (f.textContent.includes(keyword)) f.remove(); });
+                if (container.children.length === 0) {
+                    container.innerHTML = '<span class="px-3 py-1.5 rounded-full text-xs font-medium" style="background: rgba(143, 188, 154, 0.15); color: var(--status-healthy); border: 1px solid rgba(143, 188, 154, 0.3);">✓ healthy</span>';
+                }
+            }
+
+            logToSystem(msg, type = 'info') {
+                const log = document.getElementById('system-log');
+                const div = document.createElement('div');
+                div.className = `terminal-line log-${type}`;
+                const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+                div.textContent = `[${ts}] ${msg}`;
+                log.appendChild(div);
+                log.scrollTop = log.scrollHeight;
+            }
+
+            logToRaft(msg, type = 'info') {
+                const log = document.getElementById('raft-log');
+                const div = document.createElement('div');
+                div.className = `terminal-line log-${type}`;
+                const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+                div.textContent = `[${ts}] ${msg}`;
+                log.appendChild(div);
+                log.scrollTop = log.scrollHeight;
+            }
+
+            addTimelineEvent(description, type) {
+                const container = document.getElementById('timeline-container');
+                if (!container) return;
+                const div = document.createElement('div');
+                div.className = `timeline-item ${type}`;
+                const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+                div.innerHTML = `<div class="text-xs font-medium" style="color: var(--charcoal);">${description}</div><div class="text-xs mono" style="color: var(--warm-gray);">${ts}</div>`;
+                container.insertBefore(div, container.firstChild);
+                this.eventTimeline.push({ ts, description, type });
+            }
+
+            startRaftHeartbeat() {
+                setInterval(() => {
+                    if (Math.random() > 0.7) {
+                        this.logToRaft(`[heartbeat] ${this.raftLeader} sending heartbeats`, 'info');
+                    }
+                }, 3000);
+            }
+
+            startAnomalyDetection() {
+                setInterval(() => {
+                    this.anomalyScore = Math.floor(10 + Math.random() * 30);
+                    const avgCpu = this.nodes.reduce((sum, n) => sum + n.cpu, 0) / this.nodes.length;
+                    if (avgCpu > 80) this.anomalyScore += 40;
+                    document.getElementById('anomaly-score').textContent = `Risk: ${this.anomalyScore}%`;
+                    if (this.anomalyScore > 60) {
+                        this.logToSystem(`[anomaly] elevated risk score: ${this.anomalyScore}%`, 'warning');
+                    }
+                }, 5000);
+            }
+
+            updateCostSavings() {
+                const baseCost = this.objects.reduce((sum, o) => sum + o.size, 0) / 1024 / 1024 / 1024 * 23;
+                const naultCost = baseCost * 0.44;
+                this.costSavings = baseCost - naultCost;
+                document.getElementById('cost-savings').textContent = '$' + this.costSavings.toFixed(2);
+            }
+
+            startMetricsSimulation() {
+                setInterval(() => {
+                    this.metrics.readIops = Math.floor(800 + Math.random() * 400);
+                    this.metrics.writeIops = Math.floor(400 + Math.random() * 300);
+                    this.metrics.throughput = (Math.random() * 150 + 50).toFixed(1);
+                    document.getElementById('read-iops').textContent = this.metrics.readIops.toLocaleString();
+                    document.getElementById('write-iops').textContent = this.metrics.writeIops.toLocaleString();
+                    document.getElementById('throughput').textContent = this.metrics.throughput;
+                    const chart = Chart.getChart('iops-chart');
+                    if (chart) {
+                        chart.data.datasets[0].data.shift(); chart.data.datasets[0].data.push(this.metrics.readIops);
+                        chart.data.datasets[1].data.shift(); chart.data.datasets[1].data.push(this.metrics.writeIops);
+                        chart.update('none');
+                    }
+                    this.updateCostSavings();
+                }, 2000);
+            }
+
+            updateMetrics(op, count = 1) {
+                if (op === 'write') this.metrics.writeIops += count * 100;
+                else this.metrics.readIops += count * 100;
+            }
+
+            setupKeyboardShortcuts() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+                    switch(e.key.toLowerCase()) {
+                        case 'k': const alive = this.nodes.filter(n => n.isAlive); if (alive.length > 0) this.killNode(alive[Math.floor(Math.random() * alive.length)].id); break;
+                        case 'h': if (this.isPartitioned) this.healPartition(); this.triggerAntiEntropy(); break;
+                        case 'm': switchTab('merkle'); break;
+                        case 'd': this.runDisasterDrill(); break;
+                        case 'u': document.getElementById('file-input').click(); break;
+                        case '?': toggleShortcuts(); break;
+                    }
+                });
+            }
+
+            setupVoiceRecognition() {
+                if ('webkitSpeechRecognition' in window) {
+                    this.recognition = new webkitSpeechRecognition();
+                    this.recognition.continuous = true;
+                    this.recognition.interimResults = true;
+                    this.recognition.onresult = (event) => {
+                        const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
+                        if (transcript.includes('kill')) { const alive = this.nodes.filter(n => n.isAlive); if (alive.length > 0) this.killNode(alive[0].id); }
+                        if (transcript.includes('heal')) { this.triggerAntiEntropy(); }
+                        if (transcript.includes('merkle')) { switchTab('merkle'); }
+                        if (transcript.includes('metrics')) { switchTab('metrics'); }
+                        if (transcript.includes('disaster')) { this.runDisasterDrill(); }
+                        this.logToSystem(`[voice] heard: "${transcript}"`, 'info');
+                    };
+                }
+            }
+
+            initCharts() {
+                const ctx = document.getElementById('iops-chart').getContext('2d');
+                Chart.defaults.color = '#8b847c'; Chart.defaults.borderColor = 'rgba(184, 176, 168, 0.2)';
+                new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: Array(20).fill(''), datasets: [
+                        { label: 'Read', data: Array(20).fill(0), borderColor: '#7a8fa8', backgroundColor: 'rgba(122, 143, 168, 0.08)', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0 },
+                        { label: 'Write', data: Array(20).fill(0), borderColor: '#a88fb5', backgroundColor: 'rgba(168, 143, 181, 0.08)', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0 }
+                    ]},
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(184, 176, 168, 0.12)' } }, x: { grid: { display: false } } }, animation: { duration: 300 } }
+                });
+            }
+        }
+
+        const nault = new NaultGodEdition();
+
+        function switchTab(tab) {
+            ['merkle', 'metrics', 'raft', 'benchmarks', 'compliance'].forEach(t => {
+                document.getElementById(`tab-${t}`).style.display = t === tab ? 'block' : 'none';
+                document.querySelector(`[data-tab="${t}"]`).classList.toggle('active', t === tab);
+            });
+        }
+
+        function toggleShortcuts() { document.getElementById('shortcuts-modal').classList.toggle('active'); }
+
+        function toggleVoice() {
+            nault.isVoiceActive = !nault.isVoiceActive;
+            const btn = document.getElementById('voice-btn');
+            const status = document.getElementById('voice-status');
+            if (nault.isVoiceActive) {
+                btn.classList.add('listening');
+                btn.textContent = '🎤 Listening...';
+                status.style.display = 'block';
+                nault.recognition.start();
+            } else {
+                btn.classList.remove('listening');
+                btn.textContent = '🎤 Voice';
+                status.style.display = 'none';
+                nault.recognition.stop();
+            }
+        }
+
+        function runDisasterDrill() { nault.runDisasterDrill(); }
+
+        function closeDisasterDrill() { document.getElementById('disaster-overlay').classList.remove('active'); }
+
+        function exportReport() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(20);
+            doc.text('nault - God Edition Report', 20, 30);
+            doc.setFontSize(12);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 45);
+            doc.text(`Cluster Status: ${document.getElementById('cluster-status').textContent}`, 20, 60);
+            doc.text(`Availability: ${document.getElementById('availability').textContent}`, 20, 75);
+            doc.text(`Total Nodes: ${nault.nodes.length}`, 20, 90);
+            doc.text(`Replication Factor: N=${nault.replicationFactor}`, 20, 105);
+            doc.text(`Total Objects: ${nault.objects.length}`, 20, 120);
+            doc.text(`Deduplication Savings: ${nault.dedupSavings.toFixed(2)} MB`, 20, 135);
+            doc.text(`Cost Savings: $${nault.costSavings.toFixed(2)}`, 20, 150);
+            doc.text('Recent Events:', 20, 170);
+            nault.eventTimeline.slice(-8).forEach((event, i) => {
+                doc.text(`  ${event.ts} - ${event.description}`, 25, 185 + i * 15);
+            });
+            doc.save('nault-god-edition-report.pdf');
+            nault.logToSystem('[export] Report generated', 'success');
+        }
+
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+        uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('dragover'); Array.from(e.dataTransfer.files).forEach(file => nault.uploadFile(file)); });
+        fileInput.addEventListener('change', e => Array.from(e.target.files).forEach(file => nault.uploadFile(file)));
+        document.getElementById('upload-btn').addEventListener('click', () => { if (fileInput.files.length === 0) fileInput.click(); else Array.from(fileInput.files).forEach(file => nault.uploadFile(file)); });
+        document.getElementById('replication-factor').addEventListener('change', e => { nault.replicationFactor = parseInt(e.target.value); document.getElementById('overhead').textContent = `${nault.replicationFactor}.0x`; nault.logToSystem(`[config] replication N=${nault.replicationFactor}`, 'info'); });
+        document.getElementById('consistency-level').addEventListener('change', e => { nault.consistencyLevel = e.target.value; nault.logToSystem(`[config] consistency: ${e.target.value}`, 'info'); });
+        document.getElementById('kill-node-btn').addEventListener('click', () => { const alive = nault.nodes.filter(n => n.isAlive); if (alive.length > 0) nault.killNode(alive[Math.floor(Math.random() * alive.length)].id); });
+        document.getElementById('partition-btn').addEventListener('click', () => nault.triggerNetworkPartition());
+        document.getElementById('bitrot-btn').addEventListener('click', () => nault.corruptData());
+        document.getElementById('heal-btn').addEventListener('click', () => { if (nault.isPartitioned) nault.healPartition(); nault.triggerAntiEntropy(); });
+        document.getElementById('clear-log').addEventListener('click', () => { document.getElementById('system-log').innerHTML = ''; document.getElementById('raft-log').innerHTML = '<div class="terminal-line log-raft">[raft] log cleared</div>'; });
+
+        console.log('%c🏛️ nault god edition', 'color: #a8b5c9; font-size: 28px; font-weight: bold;');
+        console.log('%c21 FEATURES: 3D + Merkle + Election + Voice + AI + Disaster + AutoScale + More', 'color: #8fbc9a; font-size: 11px;');
+    </script>
+</body>
+</html>
